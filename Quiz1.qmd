@@ -1,0 +1,215 @@
+---
+title: "MTH443: Quiz 1 – Multivariate Analysis of Cyber Crime Data (2020)"
+author: "Soham Sarkar"
+format: pdf
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+# Introduction
+
+The State/UT wise cyber crime data (India, 2020) is analyzed using multivariate statistical methods. The objectives are:
+
+1. Obtain a PCA-based projection.
+2. Detect multivariate outliers.
+3. Construct a scree plot and determine the number of principal components.
+4. Perform complete linkage hierarchical clustering and partition into 4 clusters.
+5. Perform K-means clustering with k = 4.
+
+All variables are standardized prior to analysis.
+
+---
+
+# Data Loading and Standardization
+
+```{r}
+rm(list = ls())
+
+data <- read.csv("cyber_crime.csv", header = TRUE)
+
+# Set State/UT names as row names
+rownames(data) <- data[,1]
+
+# Remove State/UT column
+data_numeric <- data[,-1]
+
+# Check missing values
+sum(is.na(data_numeric))
+
+# Standardize variables
+data_scaled <- scale(data_numeric)
+
+dim(data_scaled)
+```
+
+**Interpretation:**  
+Standardization ensures each motive variable contributes equally to PCA and clustering procedures.
+
+---
+
+# (a) Principal Component Analysis (PCA)
+
+```{r}
+pca_result <- prcomp(data_scaled, center = TRUE, scale. = TRUE)
+
+summary(pca_result)
+```
+
+## PCA Projection (PC1 vs PC2)
+
+```{r}
+pca_scores <- pca_result$x
+
+plot(pca_scores[,1], pca_scores[,2],
+     xlab = "PC1",
+     ylab = "PC2",
+     main = "PCA Projection",
+     pch = 19)
+
+text(pca_scores[,1], pca_scores[,2],
+     labels = rownames(data_scaled),
+     pos = 3, cex = 0.6)
+```
+
+**Interpretation:**  
+The first principal component explains the largest proportion of total variation, followed by the second component.  
+States that are far from the origin exhibit distinct cyber crime motive structures.  
+If the first few components explain a large cumulative proportion of variance, dimensionality reduction is efficient.
+
+---
+
+# (b) Outlier Detection (Mahalanobis Distance)
+
+```{r}
+center <- colMeans(data_scaled)
+cov_matrix <- cov(data_scaled)
+
+md <- mahalanobis(data_scaled, center, cov_matrix)
+
+cutoff <- qchisq(0.975, df = ncol(data_scaled))
+
+outliers <- which(md > cutoff)
+
+rownames(data_scaled)[outliers]
+```
+
+## Mahalanobis Distance Plot
+
+```{r}
+plot(md, type = "h",
+     main = "Mahalanobis Distance",
+     ylab = "Distance")
+
+abline(h = cutoff, col = "red", lty = 2, lwd = 2)
+```
+
+**Interpretation:**  
+States exceeding the chi-square cutoff are identified as multivariate outliers.  
+Such states differ significantly in overall cyber crime motive composition compared to others.
+
+---
+
+# (c) Scree Plot
+
+```{r}
+eigenvalues <- pca_result$sdev^2
+
+plot(eigenvalues, type = "b",
+     xlab = "Principal Component",
+     ylab = "Eigenvalue",
+     main = "Scree Plot")
+
+abline(h = 1, col = "red", lty = 2)
+```
+
+**Interpretation:**  
+The scree plot displays decreasing eigenvalues.  
+The elbow point indicates the optimal number of principal components.  
+Using the Kaiser criterion (eigenvalue > 1), a small number of components (typically 2–4) is sufficient for dimensional reduction.
+
+---
+
+# (d) Hierarchical Clustering (Complete Linkage)
+
+```{r}
+dist_matrix <- dist(data_scaled)
+
+hc_complete <- hclust(dist_matrix, method = "complete")
+
+plot(hc_complete,
+     main = "Complete Linkage Dendrogram",
+     cex = 0.6)
+
+# Partition into 4 clusters
+clusters_hc <- cutree(hc_complete, k = 4)
+
+# Determine cut height for 4 clusters
+h_cut <- sort(hc_complete$height, decreasing = TRUE)[4]
+
+abline(h = h_cut, col = "red", lty = 2, lwd = 2)
+
+split(rownames(data_scaled), clusters_hc)
+```
+
+**Interpretation:**  
+Complete linkage clustering forms groups based on maximum inter-cluster distances.  
+The red horizontal line indicates the cut producing 4 clusters.  
+States within the same cluster have similar cyber crime motive distributions.
+
+---
+
+# (e) K-means Clustering (k = 4)
+
+```{r}
+set.seed(123)
+
+kmeans_result <- kmeans(data_scaled,
+                        centers = 4,
+                        nstart = 25)
+
+kmeans_result$cluster
+```
+
+## Cluster Members
+
+```{r}
+split(rownames(data_scaled),
+      kmeans_result$cluster)
+```
+
+## Visualization Using PCA Coordinates
+
+```{r}
+plot(pca_scores[,1], pca_scores[,2],
+     col = kmeans_result$cluster,
+     pch = 19,
+     xlab = "PC1",
+     ylab = "PC2",
+     main = "K-means Clustering (k = 4)")
+
+legend("bottomleft",
+       legend = 1:4,
+       col = 1:4,
+       pch = 19)
+```
+
+**Interpretation:**  
+K-means clustering partitions the states into four groups by minimizing within-cluster variance.  
+The PCA scatter plot shows the separation of clusters.  
+Comparison with hierarchical clustering may reveal similarities or differences in grouping structure.
+
+---
+
+# Conclusion
+
+1. PCA effectively reduces dimensionality while retaining most variability.  
+2. The scree plot suggests retaining a small number of principal components.  
+3. Mahalanobis distance identifies multivariate outliers.  
+4. Complete linkage clustering produces 4 meaningful hierarchical groups.  
+5. K-means clustering confirms the presence of four distinct clusters in the data.
+
+Hence, the cyber crime data exhibits clear multivariate structure and clustering patterns across States/UTs.
+
+---
